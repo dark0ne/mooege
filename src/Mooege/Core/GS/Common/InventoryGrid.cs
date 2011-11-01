@@ -58,7 +58,9 @@ namespace Mooege.Core.GS.Common
         {
             if(EquipmentSlot == (int) EquipmentSlotId.Vendor)
                 return new InventorySize() { Width = 1, Height = 1 };
-            if (Item.IsWeapon(item.ItemType) || Item.IsArmor(item.ItemType) || Item.IsOffhand(item.ItemType))
+            if ((Item.IsArmor(item.ItemType) && !Item.IsBelt(item.ItemType)) ||
+                Item.IsWeapon(item.ItemType) ||
+                Item.IsOffhand(item.ItemType))
             {
                 return new InventorySize() { Width = 1, Height = 2 };
             }

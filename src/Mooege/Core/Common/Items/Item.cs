@@ -325,6 +325,11 @@ namespace Mooege.Core.Common.Items
         {
             return ItemGroup.Is2H(itemType);
         }
+
+        public static bool IsBelt(ItemTypeTable itemType)
+        {
+            return ItemGroup.IsSubType(itemType, "Belt");
+        }
         #endregion
 
         public void SetInventoryLocation(int equipmentSlot, int column, int row)
