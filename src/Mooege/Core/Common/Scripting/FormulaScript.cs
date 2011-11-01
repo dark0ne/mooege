@@ -146,7 +146,7 @@ namespace Mooege.Core.Common.Scripting
                             script[pos + 2],
                             script[pos + 3],
                             script[pos + 4]);
-                        ++pos;
+                        pos += 4;
                         break;
                     case 6:
                         b.Append("push ");
