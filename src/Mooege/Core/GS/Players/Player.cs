@@ -45,6 +45,8 @@ using Mooege.Net.GS.Message.Definitions.Trade;
 using Mooege.Core.GS.Actors.Implementations;
 using Mooege.Net.GS.Message.Definitions.Artisan;
 using Mooege.Core.GS.Actors.Implementations.Artisans;
+using Mooege.Core.GS.Actors.Implementations.Hirelings;
+using Mooege.Net.GS.Message.Definitions.Hireling;
 
 namespace Mooege.Core.GS.Players
 {
@@ -106,6 +108,69 @@ namespace Mooege.Core.GS.Players
         public List<OpenConversation> OpenConversations { get; set; }
 
         /// <summary>
+        /// NPC currently interaced with
+        /// </summary>
+        public InteractiveNPC SelectedNPC { get; set; }
+
+        private Hireling _activeHireling = null;
+        public Hireling ActiveHireling
+        {
+            get { return _activeHireling; }
+            set
+            {
+                if (value == _activeHireling)
+                    return;
+
+                if (_activeHireling != null)
+                {
+                    _activeHireling.Dismiss(this);
+                }
+
+                _activeHireling = value;
+
+                if (value != null)
+                {
+                    InGameClient.SendMessage(new PetMessage()
+                    {
+                        Field0 = 0,
+                        Field1 = 0,
+                        PetId = value.DynamicID,
+                        Field3 = 0,
+                    });
+                }
+            }
+        }
+
+        private Hireling _activeHirelingProxy = null;
+        public Hireling ActiveHirelingProxy
+        {
+            get { return _activeHirelingProxy; }
+            set
+            {
+                if (value == _activeHirelingProxy)
+                    return;
+
+                if (_activeHirelingProxy != null)
+                {
+                    _activeHirelingProxy.Dismiss(this);
+                }
+
+                _activeHirelingProxy = value;
+
+                if (value != null)
+                {
+                    InGameClient.SendMessage(new PetMessage()
+                    {
+                        Field0 = 0,
+                        Field1 = 0,
+                        PetId = value.DynamicID,
+                        Field3 = 22,
+                    });
+                }
+            }
+        }
+
+        /// <summary>
         /// Creates a new player.
         /// </summary>
         /// <param name="world">The initial world player joins in.</param>
@@ -137,6 +202,7 @@ namespace Mooege.Core.GS.Players
             this.GroundItems = new Dictionary<uint, Item>();
             this.ExpBonusData = new ExpBonusData(this);
             this.OpenConversations = new List<OpenConversation>();
+            this.SelectedNPC = null;
 
             #region Attributes
 
@@ -314,7 +380,6 @@ namespace Mooege.Core.GS.Players
             //this.Attributes[GameAttribute.Disabled] = true; // we should be making use of these ones too /raist.
             //this.Attributes[GameAttribute.Loading] = true;
             //this.Attributes[GameAttribute.Invulnerable] = true;
-
             this.Attributes[GameAttribute.Hidden] = false;
             this.Attributes[GameAttribute.Immobolize] = true;
             this.Attributes[GameAttribute.Untargetable] = true;
@@ -347,9 +412,9 @@ namespace Mooege.Core.GS.Players
             else if (message is TryWaypointMessage) OnTryWaypoint(client, (TryWaypointMessage)message);
             else if (message is RequestBuyItemMessage) OnRequestBuyItem(client, (RequestBuyItemMessage)message);
             else if (message is RequestAddSocketMessage) OnRequestAddSocket(client, (RequestAddSocketMessage)message);
+            else if (message is HirelingDismissMessage) OnHirelingDismiss();
             else return;
         }
-
 
         private void OnAssignActiveSkill(GameClient client, AssignActiveSkillMessage message)
         {
@@ -382,7 +447,7 @@ namespace Mooege.Core.GS.Players
 
             if ((actor.GBHandle.Type == 1) && (actor.Attributes[GameAttribute.TeamID] == 10))
             {
-                this.ExpBonusData.MonsterAttacked(this.InGameClient.Game.Tick);
+                this.ExpBonusData.MonsterAttacked(this.InGameClient.Game.TickCounter);
             }
 
             actor.OnTargeted(this, message);
@@ -445,11 +510,16 @@ namespace Mooege.Core.GS.Players
             jeweler.OnAddSocket(this, item);
         }
 
+        private void OnHirelingDismiss()
+        {
+            ActiveHireling = null;
+        }
+
         #endregion
 
         #region update-logic
 
-        public override void Update()
+        public override void Update(int tickCounter)
         {
             // Check the Killstreaks
             this.ExpBonusData.Check(0);
@@ -470,14 +540,17 @@ namespace Mooege.Core.GS.Players
         /// </summary>
         public void RevealScenesToPlayer()
         {
-            var scenes = this.GetScenesInRange();
+            var scenes = this.GetScenesInRegion();
 
             foreach (var scene in scenes) // reveal scenes in player's proximity.
             {
                 if (scene.IsRevealedToPlayer(this)) // if the actors is already revealed skip it.
                     continue; // if the scene is already revealed, skip it.
 
-                scene.Reveal(this);
+                if (scene.Parent != null) // if it's a subscene, always make sure it's parent get reveals first and then it reveals his childs.
+                    scene.Parent.Reveal(this); 
+                else 
+                    scene.Reveal(this);
             }
         }
 
@@ -778,10 +851,10 @@ namespace Mooege.Core.GS.Players
                 {
                     HirelingInfos = this.HirelingInfo,
                     Field1 = 0x00000000,
-                    Field2 = 0x00000000,
+                    Field2 = 0x00000002,
                 },
 
-                Field5 = 0x00000000,
+                Field5 = 0x00006A770,
 
                 LearnedLore = this.LearnedLore,
                 snoActiveSkills = this.SkillSet.ActiveSkills,
@@ -842,10 +915,10 @@ namespace Mooege.Core.GS.Players
 
         public HirelingInfo[] HirelingInfo = new HirelingInfo[4]
         {
-            new HirelingInfo { Field0 = 0x00000000, Field1 = -1, Field2 = 0x00000000, Field3 = 0x00000000, Field4 = false, Field5 = -1, Field6 = -1, Field7 = -1, Field8 = -1, },
-            new HirelingInfo { Field0 = 0x00000000, Field1 = -1, Field2 = 0x00000000, Field3 = 0x00000000, Field4 = false, Field5 = -1, Field6 = -1, Field7 = -1, Field8 = -1, },
-            new HirelingInfo { Field0 = 0x00000000, Field1 = -1, Field2 = 0x00000000, Field3 = 0x00000000, Field4 = false, Field5 = -1, Field6 = -1, Field7 = -1, Field8 = -1, },
-            new HirelingInfo { Field0 = 0x00000000, Field1 = -1, Field2 = 0x00000000, Field3 = 0x00000000, Field4 = false, Field5 = -1, Field6 = -1, Field7 = -1, Field8 = -1, },
+            new HirelingInfo { HirelingIndex = 0x00000000, Field1 = -1, Level = 0x00000000, Field3 = 0x0000, Field4 = false, Skill1SNOId = -1, Skill2SNOId = -1, Skill3SNOId = -1, Skill4SNOId = -1, },
+            new HirelingInfo { HirelingIndex = 0x00000001, Field1 = -1, Level = 20, Field3 = 0x00003C19, Field4 = false, Skill1SNOId = 0x000006D3, Skill2SNOId = -1, Skill3SNOId = -1, Skill4SNOId = -1, },
+            new HirelingInfo { HirelingIndex = 0x00000002, Field1 = -1, Level = 25, Field3 = 0x00003C19, Field4 = false, Skill1SNOId = -1, Skill2SNOId = -1, Skill3SNOId = -1, Skill4SNOId = -1, },
+            new HirelingInfo { HirelingIndex = 0x00000003, Field1 = -1, Level = 30, Field3 = 0x00003C19, Field4 = false, Skill1SNOId = -1, Skill2SNOId = -1, Skill3SNOId = -1, Skill4SNOId = -1, },
         };
 
         public SkillKeyMapping[] SkillKeyMappings = new SkillKeyMapping[15]
@@ -1170,7 +1243,7 @@ namespace Mooege.Core.GS.Players
                     Field0 = 0x0000006E,
                     SNOConversation = snoConversation
                 },
-                this.InGameClient.Game.Tick + 200
+                this.InGameClient.Game.TickCounter + 200
             ));
         }
 
@@ -1180,7 +1253,7 @@ namespace Mooege.Core.GS.Players
             {
                 foreach (OpenConversation openConversation in this.OpenConversations)
                 {
-                    if (openConversation.endTick <= this.InGameClient.Game.Tick)
+                    if (openConversation.endTick <= this.InGameClient.Game.TickCounter)
                     {
                         this.InGameClient.SendMessage(openConversation.endConversationMessage);
                     }
